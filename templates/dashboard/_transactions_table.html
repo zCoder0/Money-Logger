@@ -1,0 +1,50 @@
+{% load humanize %}
+{% if transactions %}
+<div class="table-wrapper">
+<table class="transactions-table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Type</th>
+            <th>Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for transaction in transactions %}
+        <tr>
+            <td>{{ transaction.date|date:"d M, Y" }}</td>
+            <td>
+                <span style="background: #f8f9fa; padding: 4px 8px; border-radius: 8px; font-size: 0.8rem; color: #495057;">{{ transaction.category }}</span>
+            </td>
+            <td>{{ transaction.description|default:"-" }}</td>
+            <td>
+                <span class="{% if transaction.transaction_type == 'INCOME' %}badge-income{% else %}badge-expense{% endif %}">
+                    {{ transaction.transaction_type|title }}
+                </span>
+            </td>
+            <td class="{% if transaction.transaction_type == 'INCOME' %}amount-positive{% else %}amount-negative{% endif %}">
+                {% if transaction.transaction_type == 'INCOME' %}+{% else %}-{% endif %}₹{{ transaction.amount|floatformat:0|intcomma }}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div class="pagination">
+    {% if transactions.has_previous %}
+        <a href="?page={{ transactions.previous_page_number }}{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}" class="page-link">Previous</a>
+    {% endif %}
+    <span>Page {{ transactions.number }} of {{ transactions.paginator.num_pages }}</span>
+    {% if transactions.has_next %}
+        <a href="?page={{ transactions.next_page_number }}{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}" class="page-link">Next</a>
+    {% endif %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">📝</div>
+    <p>No transactions yet. Add your first transaction!</p>
+</div>
+{% endif %}
