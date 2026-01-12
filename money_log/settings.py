@@ -41,8 +41,10 @@ CSRF_TRUSTED_ORIGINS = [
 
 # LOAD SECURITY KEYS 
 
-SECRET_KEY = os.getenv("SECRET_KEY") or "django-insecure-4u)hc$wao_i_f1t)!7l1j8lz_vpdk37*sy!9akc!x5pmqnmb^y"
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 ENABLE_ENCRYPTION = os.getenv("ENABLE_ENCRYPTION", "false").lower() == "true"
+
+PRODUCTION_MODE = os.getenv("PRODUCTION_MODE", "false").lower() == "true"
 
 if not ENABLE_ENCRYPTION:
     if SECRET_KEY is None:
@@ -105,12 +107,44 @@ WSGI_APPLICATION = "money_log.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+
+if PRODUCTION_MODE:
+    import os
+    import dj_database_url
+    
+    INTERNAL_DATABASE_URL=os.getenv("INTERNAL_DATABASE_URL")
+    EXTERNAL_DATABASE_URL = os.getenv("EXTERNAL_DATABASE_URL")
+    USE_INTERNAL_DB = os.getenv("USE_INTERNAL_DB").lower() == 'true'
+
+
+    if USE_INTERNAL_DB and  not INTERNAL_DATABASE_URL:
+        raise Exception("INTERNAL_DATABASE_URL environment variable not set")
+    
+    if not USE_INTERNAL_DB and not EXTERNAL_DATABASE_URL:
+        raise Exception("EXTERNAL_DATABASE_URL environment variable not set")
+    
+    if USE_INTERNAL_DB :
+        default = INTERNAL_DATABASE_URL
+    
+    else:
+        default = EXTERNAL_DATABASE_URL
+
+    DATABASES = {
+    "default": dj_database_url.config(
+        default=default,
+        conn_max_age=600,
+        ssl_require=True
+        )
     }
-}
+
+
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation

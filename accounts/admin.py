@@ -1,13 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, UserProfile
+from .models import User
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
     list_display = ['username', 'email', 'first_name', 'last_name', 'is_staff', 'date_joined']
     list_filter = ['is_staff', 'is_superuser', 'is_active', 'date_joined']
 
-@admin.register(UserProfile)
-class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'phone_plain', 'address_plain']
-    search_fields = ['user__username', 'user__email']

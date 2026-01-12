@@ -16,7 +16,7 @@ class EncryptionService:
             info = context.encode('utf-8')
         )
 
-        return hkdf.derive(settings.SECRET_KEY)
+        return hkdf.derive(settings.ENCRYPTION_KEY)
 
     @staticmethod
     def encrypt(plaintext:str , context:str)-> bytes:
