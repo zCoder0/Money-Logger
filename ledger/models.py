@@ -8,11 +8,17 @@ class Transaction(models.Model):
     TRANSACTION_TYPE = (
         ("INCOME", "Income"),
         ("EXPENSE", "Expense"),
+        ("SWITCH", "Switch"),
     )
 
     MONEY_TYPE = (
         ("HAND CASH", "Hand Cash"),
         ("UPI CASH", "UPI Cash")
+    )
+
+    SWITCH_DIRECTION = (
+        ("UPI_TO_HAND", "UPI to Hand"),
+        ("HAND_TO_UPI", "Hand to UPI"),
     )
 
     user = models.ForeignKey(
@@ -23,6 +29,7 @@ class Transaction(models.Model):
 
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPE)
     money_type = models.CharField(max_length=20, choices=MONEY_TYPE, default="HAND CASH")
+    switch_direction = models.CharField(max_length=20, choices=SWITCH_DIRECTION, blank=True, null=True)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     category = models.CharField(max_length=50)
     description = models.CharField(max_length=200, blank=True)

@@ -41,3 +41,14 @@ class TransactionForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
             "date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
         }
+
+class SwitchForm(forms.ModelForm):
+    class Meta:
+        model = Transaction
+        fields = ["amount", "switch_direction", "description", "date"]
+        widgets = {
+            "amount": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "placeholder": "Enter amount"}),
+            "switch_direction": forms.Select(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 2, "placeholder": "Optional note (e.g., ATM withdrawal, bank deposit)"}),
+            "date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        }

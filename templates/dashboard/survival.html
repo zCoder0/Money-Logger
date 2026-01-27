@@ -99,12 +99,28 @@
                 </div>
                 <div class="detail-item">
                     <div class="detail-value">₹{{ avg_daily_spend|floatformat:0|intcomma }}</div>
-                    <div class="detail-label">Daily Spend</div>
+                    <div class="detail-label">Avg Daily Spend</div>
                 </div>
                 <div class="detail-item">
-                    <div class="detail-value">{{ days_left }}</div>
-                    <div class="detail-label">Days Left</div>
+                    <div class="detail-value {% if today_expense > avg_daily_spend %}danger{% else %}good{% endif %}">₹{{ today_expense|floatformat:0|intcomma }}</div>
+                    <div class="detail-label">Today's Spend</div>
                 </div>
+            </div>
+        </div>
+
+        <div class="details">
+            <h3>📅 This Week's Spending</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 10px;">
+                {% for day in week_expenses %}
+                <div class="detail-item" style="{% if day.is_today %}background: #e3f2fd; border: 2px solid #2196f3;{% endif %}">
+                    <div class="detail-value" style="font-size: 0.9rem; {% if day.amount > avg_daily_spend %}color: #e74c3c;{% endif %}">₹{{ day.amount|floatformat:0|intcomma }}</div>
+                    <div class="detail-label">{{ day.day }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            <div style="margin-top: 15px; text-align: center; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                <span style="font-weight: 600; color: #2c3e50;">Week Total: </span>
+                <span style="font-weight: 700; font-size: 1.1rem; color: #e74c3c;">₹{{ week_total|floatformat:0|intcomma }}</span>
             </div>
         </div>
 

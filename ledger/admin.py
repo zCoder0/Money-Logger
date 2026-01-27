@@ -3,8 +3,8 @@ from .models import Transaction
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ['user', 'transaction_type','money_type', 'amount', 'category', 'description', 'date', 'created_at']
-    list_filter = ['transaction_type','money_type', 'category', 'date', 'created_at']
+    list_display = ['user', 'transaction_type', 'money_type', 'switch_direction', 'amount', 'category', 'description', 'date', 'created_at']
+    list_filter = ['transaction_type', 'money_type', 'switch_direction', 'category', 'date', 'created_at']
     search_fields = ['description', 'category']
     date_hierarchy = 'date'
     ordering = ['-date']

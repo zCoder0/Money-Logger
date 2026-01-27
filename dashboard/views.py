@@ -51,22 +51,27 @@ def dashboard(request):
     paginator = Paginator(transactions, 10)
     transactions_page = paginator.get_page(page)
 
+    # Exclude SWITCH transactions from income/expense totals
     total_income = transactions.filter(transaction_type="INCOME").aggregate(total=Sum("amount"))["total"] or 0
     total_expense = transactions.filter(transaction_type="EXPENSE").aggregate(total=Sum("amount"))["total"] or 0
     balance = total_income - total_expense
     
-    # Calculate balance by money type - FIXED LOGIC
+    # Calculate balance by money type - FIXED LOGIC (excluding SWITCH)
     all_transactions = Transaction.objects.filter(user=request.user)
     
-    # UPI Cash balance - corrected calculation
+    # UPI Cash balance
     upi_income = all_transactions.filter(transaction_type="INCOME", money_type="UPI CASH").aggregate(total=Sum("amount"))["total"] or 0
     upi_expense = all_transactions.filter(transaction_type="EXPENSE", money_type="UPI CASH").aggregate(total=Sum("amount"))["total"] or 0
-    upi_balance = upi_income - upi_expense
+    upi_from_switch = all_transactions.filter(transaction_type="SWITCH", switch_direction="HAND_TO_UPI").aggregate(total=Sum("amount"))["total"] or 0
+    upi_to_switch = all_transactions.filter(transaction_type="SWITCH", switch_direction="UPI_TO_HAND").aggregate(total=Sum("amount"))["total"] or 0
+    upi_balance = upi_income - upi_expense + upi_from_switch - upi_to_switch
     
-    # Hand Cash balance - corrected calculation  
+    # Hand Cash balance
     hand_income = all_transactions.filter(transaction_type="INCOME", money_type="HAND CASH").aggregate(total=Sum("amount"))["total"] or 0
     hand_expense = all_transactions.filter(transaction_type="EXPENSE", money_type="HAND CASH").aggregate(total=Sum("amount"))["total"] or 0
-    hand_balance = hand_income - hand_expense
+    hand_from_switch = all_transactions.filter(transaction_type="SWITCH", switch_direction="UPI_TO_HAND").aggregate(total=Sum("amount"))["total"] or 0
+    hand_to_switch = all_transactions.filter(transaction_type="SWITCH", switch_direction="HAND_TO_UPI").aggregate(total=Sum("amount"))["total"] or 0
+    hand_balance = hand_income - hand_expense + hand_from_switch - hand_to_switch
     
     # Survival calculations for warning
     today = date.today()
@@ -82,13 +87,17 @@ def dashboard(request):
     projected_end_balance = available_funds - projected_remaining_spend
     survive = projected_end_balance >= 0
     
+    # Today's spending
+    today_expense = month_transactions.filter(transaction_type="EXPENSE", date=today).aggregate(Sum("amount"))["amount__sum"] or 0
+    today_expense = float(today_expense)
+    
     # Health score for warning
     health_score = 100
     if expense_mtd > total_income:
         health_score -= 20
     if projected_end_balance < 0:
         health_score -= 30
-    if avg_daily_spend > 500:
+    if avg_daily_spend > 0 and today_expense > avg_daily_spend * 1.5:
         health_score -= 15
     
     # Days until broke
@@ -97,7 +106,9 @@ def dashboard(request):
         days_until_broke = int(available_funds / avg_daily_spend) 
     # Generate warning message for dashboard
     warning_message = ""
-    if not survive:
+    if today_expense > avg_daily_spend * 1.5 and avg_daily_spend > 0:
+        warning_message = f"⚠️ Warning: You spent ₹{today_expense:.0f} today, which is {((today_expense/avg_daily_spend - 1) * 100):.0f}% more than your daily average of ₹{avg_daily_spend:.0f}"
+    elif not survive:
         if days_until_broke:
             warning_message = f"⚠️ Warning: Money will run out in {days_until_broke} days at current spending rate"
         else:
@@ -106,8 +117,6 @@ def dashboard(request):
         warning_message = "🚨 Financial health is at risk - review your spending immediately"
     elif health_score < 70:
         warning_message = "⚠️ Caution: Your spending patterns need attention"
-    elif avg_daily_spend > 500:
-        warning_message = f"💡 Notice: Daily spending (₹{avg_daily_spend:.0f}) is above average"
     
     # Get unique categories for filter dropdown
     categories = Transaction.objects.filter(user=request.user).values_list('category', flat=True).distinct().order_by('category')
@@ -125,7 +134,7 @@ def dashboard(request):
         "transaction_type": transaction_type,
         "money_type": money_type,
         "categories": categories,
-        "transaction_types": [("INCOME", "Income"), ("EXPENSE", "Expense")],
+        "transaction_types": [("INCOME", "Income"), ("EXPENSE", "Expense"), ("SWITCH", "Switch")],
         "money_types": [("UPI CASH", "UPI Cash"), ("HAND CASH", "Hand Cash")],
         "warning_message": warning_message,
     }
@@ -232,21 +241,31 @@ def analytics(request):
     all_user_transactions = Transaction.objects.filter(user=request.user)
     upi_income = all_user_transactions.filter(transaction_type="INCOME", money_type="UPI CASH").aggregate(total=Sum("amount"))["total"] or 0
     upi_expense = all_user_transactions.filter(transaction_type="EXPENSE", money_type="UPI CASH").aggregate(total=Sum("amount"))["total"] or 0
+    upi_from_switch = all_user_transactions.filter(transaction_type="SWITCH", switch_direction="HAND_TO_UPI").aggregate(total=Sum("amount"))["total"] or 0
+    upi_to_switch = all_user_transactions.filter(transaction_type="SWITCH", switch_direction="UPI_TO_HAND").aggregate(total=Sum("amount"))["total"] or 0
     hand_income = all_user_transactions.filter(transaction_type="INCOME", money_type="HAND CASH").aggregate(total=Sum("amount"))["total"] or 0
     hand_expense = all_user_transactions.filter(transaction_type="EXPENSE", money_type="HAND CASH").aggregate(total=Sum("amount"))["total"] or 0
-    available_funds = float((upi_income - upi_expense) + (hand_income - hand_expense))
+    hand_from_switch = all_user_transactions.filter(transaction_type="SWITCH", switch_direction="UPI_TO_HAND").aggregate(total=Sum("amount"))["total"] or 0
+    hand_to_switch = all_user_transactions.filter(transaction_type="SWITCH", switch_direction="HAND_TO_UPI").aggregate(total=Sum("amount"))["total"] or 0
+    available_funds = float((upi_income - upi_expense + upi_from_switch - upi_to_switch) + (hand_income - hand_expense + hand_from_switch - hand_to_switch))
     
     current_month_expense = all_user_transactions.filter(date__year=today.year, date__month=today.month, transaction_type="EXPENSE").aggregate(Sum("amount"))["amount__sum"] or 0
     avg_daily_spend = float(current_month_expense) / days_passed if days_passed > 0 else 0
     projected_end_balance = available_funds - (avg_daily_spend * days_left)
     survive = projected_end_balance >= 0
     
+    # Today's spending
+    today_expense = all_user_transactions.filter(transaction_type="EXPENSE", date=today).aggregate(Sum("amount"))["amount__sum"] or 0
+    today_expense = float(today_expense)
+    
     days_until_broke = None
     if not survive and avg_daily_spend > 0:
         days_until_broke = int(available_funds / avg_daily_spend)
     
     warning_message = ""
-    if not survive:
+    if today_expense > avg_daily_spend * 1.5 and avg_daily_spend > 0:
+        warning_message = f"⚠️ Warning: You spent ₹{today_expense:.0f} today, which is {((today_expense/avg_daily_spend - 1) * 100):.0f}% more than your daily average of ₹{avg_daily_spend:.0f}"
+    elif not survive:
         if days_until_broke:
             warning_message = f"⚠️ Warning: Money will run out in {days_until_broke} days at current spending rate"
         else:
@@ -300,15 +319,19 @@ def survival_dashboard(request):
     # Current balances (cumulative from ALL transactions - carries forward from previous months)
     all_transactions = Transaction.objects.filter(user=request.user)
     
-    # UPI Cash balance - cumulative from all time
+    # UPI Cash balance - cumulative from all time including switches
     upi_income = all_transactions.filter(transaction_type="INCOME", money_type="UPI CASH").aggregate(total=Sum("amount"))["total"] or 0
     upi_expense = all_transactions.filter(transaction_type="EXPENSE", money_type="UPI CASH").aggregate(total=Sum("amount"))["total"] or 0
-    upi_balance = upi_income - upi_expense
+    upi_from_switch = all_transactions.filter(transaction_type="SWITCH", switch_direction="HAND_TO_UPI").aggregate(total=Sum("amount"))["total"] or 0
+    upi_to_switch = all_transactions.filter(transaction_type="SWITCH", switch_direction="UPI_TO_HAND").aggregate(total=Sum("amount"))["total"] or 0
+    upi_balance = upi_income - upi_expense + upi_from_switch - upi_to_switch
     
-    # Hand Cash balance - cumulative from all time
+    # Hand Cash balance - cumulative from all time including switches
     hand_income = all_transactions.filter(transaction_type="INCOME", money_type="HAND CASH").aggregate(total=Sum("amount"))["total"] or 0
     hand_expense = all_transactions.filter(transaction_type="EXPENSE", money_type="HAND CASH").aggregate(total=Sum("amount"))["total"] or 0
-    hand_balance = hand_income - hand_expense
+    hand_from_switch = all_transactions.filter(transaction_type="SWITCH", switch_direction="UPI_TO_HAND").aggregate(total=Sum("amount"))["total"] or 0
+    hand_to_switch = all_transactions.filter(transaction_type="SWITCH", switch_direction="HAND_TO_UPI").aggregate(total=Sum("amount"))["total"] or 0
+    hand_balance = hand_income - hand_expense + hand_from_switch - hand_to_switch
     
     # Survival calculations
     avg_daily_spend = float(expense_mtd) / days_passed if days_passed > 0 else 0
@@ -317,13 +340,34 @@ def survival_dashboard(request):
     projected_end_balance = available_funds - projected_remaining_spend
     survive = projected_end_balance >= 0
     
+    # Today's spending
+    today_expense = qs.filter(transaction_type="EXPENSE", date=today).aggregate(Sum("amount"))["amount__sum"] or 0
+    today_expense = float(today_expense)
+    
+    # Weekly spending analysis
+    from datetime import timedelta
+    week_start = today - timedelta(days=today.weekday())
+    week_expenses = []
+    for i in range(7):
+        day = week_start + timedelta(days=i)
+        if day.month == today.month:
+            day_expense = qs.filter(transaction_type="EXPENSE", date=day).aggregate(Sum("amount"))["amount__sum"] or 0
+            week_expenses.append({
+                'day': day.strftime('%a'),
+                'date': day,
+                'amount': float(day_expense),
+                'is_today': day == today
+            })
+    
+    week_total = sum(d['amount'] for d in week_expenses)
+    
     # Health score calculation
     health_score = 100
     if expense_mtd > income_mtd:
         health_score -= 20
     if projected_end_balance < 0:
         health_score -= 30
-    if avg_daily_spend > 500:  # High daily spend
+    if avg_daily_spend > 0 and today_expense > avg_daily_spend * 1.5:
         health_score -= 15
     
     # Health status
@@ -344,7 +388,9 @@ def survival_dashboard(request):
     
     # Generate warning message
     warning_message = ""
-    if not survive:
+    if today_expense > avg_daily_spend * 1.5 and avg_daily_spend > 0:
+        warning_message = f"⚠️ Warning: You spent ₹{today_expense:.0f} today, which is {((today_expense/avg_daily_spend - 1) * 100):.0f}% more than your daily average of ₹{avg_daily_spend:.0f}"
+    elif not survive:
         if days_until_broke:
             warning_message = f"⚠️ Warning: Money will run out in {days_until_broke} days at current spending rate"
         else:
@@ -353,11 +399,8 @@ def survival_dashboard(request):
         warning_message = "🚨 Financial health is at risk - review your spending immediately"
     elif health_score < 70:
         warning_message = "⚠️ Caution: Your spending patterns need attention"
-    elif avg_daily_spend > 500:
-        warning_message = f"💡 Notice: Daily spending (₹{avg_daily_spend:.0f}) is above average"
     
     # AI Insights generation
-    from datetime import timedelta
     insights = []
     
     # Compare with last month
@@ -431,6 +474,9 @@ def survival_dashboard(request):
         "days_in_month": days_in_month,
         "warning_message": warning_message,
         "insights": insights,
+        "today_expense": today_expense,
+        "week_expenses": week_expenses,
+        "week_total": week_total,
     }
     
     return render(request, "dashboard/survival.html", context)

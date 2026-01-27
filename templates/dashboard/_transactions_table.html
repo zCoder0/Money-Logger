@@ -1,5 +1,25 @@
 {% load humanize %}
 {% if transactions %}
+<div id="totals-display" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-weight: 600; color: #495057;">Recalculated Totals (excluding selected):</div>
+        <button onclick="resetTotals()" style="background: #6c757d; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem;">Reset</button>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px;">
+        <div style="text-align: center;">
+            <div style="color: #2ecc71; font-weight: 700; font-size: 1.2rem;" id="new-income">₹0</div>
+            <div style="font-size: 0.8rem; color: #6c757d;">Income</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="color: #e74c3c; font-weight: 700; font-size: 1.2rem;" id="new-expense">₹0</div>
+            <div style="font-size: 0.8rem; color: #6c757d;">Expense</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="color: #3498db; font-weight: 700; font-size: 1.2rem;" id="new-balance">₹0</div>
+            <div style="font-size: 0.8rem; color: #6c757d;">Balance</div>
+        </div>
+    </div>
+</div>
 <div class="table-wrapper">
 <table class="transactions-table">
     <thead>
@@ -14,22 +34,37 @@
     </thead>
     <tbody>
         {% for transaction in transactions %}
-        <tr>
+        <tr class="transaction-row" 
+            data-amount="{{ transaction.amount }}" 
+            data-type="{{ transaction.transaction_type }}" 
+            style="cursor: pointer; transition: all 0.2s;">
             <td>{{ transaction.date|date:"d M, Y" }}</td>
             <td>
                 <span style="background: #f8f9fa; padding: 4px 8px; border-radius: 8px; font-size: 0.8rem; color: #495057;">{{ transaction.category }}</span>
             </td>
             <td>{{ transaction.description|default:"-" }}</td>
             <td>
-                <span class="{% if transaction.transaction_type == 'INCOME' %}badge-income{% else %}badge-expense{% endif %}">
-                    {{ transaction.transaction_type|title }}
-                </span>
+                {% if transaction.transaction_type == 'SWITCH' %}
+                    <span style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;">
+                        🔄 Switch
+                    </span>
+                {% else %}
+                    <span class="{% if transaction.transaction_type == 'INCOME' %}badge-income{% else %}badge-expense{% endif %}">
+                        {{ transaction.transaction_type|title }}
+                    </span>
+                {% endif %}
             </td>
             <td>
-                <span style="background: #e9ecef; padding: 3px 6px; border-radius: 6px; font-size: 0.75rem; color: #6c757d;">{{ transaction.money_type }}</span>
+                {% if transaction.transaction_type == 'SWITCH' %}
+                    <span style="background: #e9ecef; padding: 3px 6px; border-radius: 6px; font-size: 0.75rem; color: #6c757d;">
+                        {% if transaction.switch_direction == 'UPI_TO_HAND' %}💳→💵{% else %}💵→💳{% endif %}
+                    </span>
+                {% else %}
+                    <span style="background: #e9ecef; padding: 3px 6px; border-radius: 6px; font-size: 0.75rem; color: #6c757d;">{{ transaction.money_type }}</span>
+                {% endif %}
             </td>
-            <td class="{% if transaction.transaction_type == 'INCOME' %}amount-positive{% else %}amount-negative{% endif %}">
-                {% if transaction.transaction_type == 'INCOME' %}+{% else %}-{% endif %}₹{{ transaction.amount|floatformat:0|intcomma }}
+            <td class="{% if transaction.transaction_type == 'INCOME' %}amount-positive{% elif transaction.transaction_type == 'EXPENSE' %}amount-negative{% else %}{% endif %}" style="{% if transaction.transaction_type == 'SWITCH' %}color: #f39c12; font-weight: 600;{% endif %}">
+                {% if transaction.transaction_type == 'INCOME' %}+{% elif transaction.transaction_type == 'EXPENSE' %}-{% else %}🔄{% endif %}₹{{ transaction.amount|floatformat:0|intcomma }}
             </td>
         </tr>
         {% endfor %}

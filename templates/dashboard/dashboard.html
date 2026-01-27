@@ -146,6 +146,17 @@
         
 
 
+        /* Transaction Row Hover */
+        .transaction-row:hover {
+            background-color: #f8f9fa !important;
+            transform: scale(1.01);
+        }
+        
+        .transaction-row.excluded {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+
         /* Responsive */
         @media(max-width:768px){
             .container { padding: 15px; }
@@ -178,6 +189,7 @@
         
         <div class="nav-buttons">
             <a href="{% url 'add_transaction' %}" class="btn primary">➕ Add Transaction</a>
+            <a href="{% url 'switch_money' %}" class="btn" style="background: #f39c12; color: #fff;">🔄 Switch Money</a>
             <a href="{% url 'analytics' %}" class="btn">📊 Analytics</a>
             <a href="{% url 'survival' %}" class="btn">🛡️ Survival</a>
             <a href="{% url 'logout' %}" class="btn" style="background: #e74c3c; color: #fff;">🚪 Logout</a>
@@ -250,7 +262,14 @@
     <script>
      document.addEventListener('DOMContentLoaded', function() {
         const container = document.getElementById('transactions-container');
+        let excludedRows = new Set();
+        let originalTotals = {
+            income: {{ total_income }},
+            expense: {{ total_expense }},
+            balance: {{ balance }}
+        };
 
+        // Handle pagination clicks
         container.addEventListener('click', function(e) {
             if (e.target.classList.contains('page-link')) {
                 e.preventDefault();
@@ -270,10 +289,83 @@
                 .then(response => response.json())
                 .then(data => {
                     container.innerHTML = data.html;
+                    excludedRows.clear();
                     window.scrollTo({ top: container.offsetTop - 20, behavior: 'smooth' });
                 });
             }
         });
+
+        // Handle transaction row clicks
+        container.addEventListener('click', function(e) {
+            const row = e.target.closest('.transaction-row');
+            if (row) {
+                const rowId = Array.from(row.parentNode.children).indexOf(row);
+                
+                if (excludedRows.has(rowId)) {
+                    // Re-include the row
+                    excludedRows.delete(rowId);
+                    row.style.opacity = '1';
+                    row.style.backgroundColor = '';
+                    row.style.textDecoration = '';
+                } else {
+                    // Exclude the row
+                    excludedRows.add(rowId);
+                    row.style.opacity = '0.5';
+                    row.style.backgroundColor = '#f8f9fa';
+                    row.style.textDecoration = 'line-through';
+                }
+                
+                recalculateTotals();
+            }
+        });
+
+        function recalculateTotals() {
+            const totalsDisplay = document.getElementById('totals-display');
+            const rows = document.querySelectorAll('.transaction-row');
+            
+            let newIncome = originalTotals.income;
+            let newExpense = originalTotals.expense;
+            
+            rows.forEach((row, index) => {
+                if (excludedRows.has(index)) {
+                    const amount = parseFloat(row.dataset.amount);
+                    const type = row.dataset.type;
+                    
+                    // Only subtract if it's INCOME or EXPENSE, not SWITCH
+                    if (type === 'INCOME') {
+                        newIncome -= amount;
+                    } else if (type === 'EXPENSE') {
+                        newExpense -= amount;
+                    }
+                }
+            });
+            
+            const newBalance = newIncome - newExpense;
+            
+            // Update display
+            document.getElementById('new-income').textContent = '₹' + newIncome.toLocaleString('en-IN');
+            document.getElementById('new-expense').textContent = '₹' + newExpense.toLocaleString('en-IN');
+            document.getElementById('new-balance').textContent = '₹' + newBalance.toLocaleString('en-IN');
+            
+            // Show/hide totals display
+            if (excludedRows.size > 0) {
+                totalsDisplay.style.display = 'block';
+            } else {
+                totalsDisplay.style.display = 'none';
+            }
+        }
+
+        // Make resetTotals function global
+        window.resetTotals = function() {
+            excludedRows.clear();
+            const rows = document.querySelectorAll('.transaction-row');
+            rows.forEach(row => {
+                row.style.opacity = '1';
+                row.style.backgroundColor = '';
+                row.style.textDecoration = '';
+            });
+            document.getElementById('totals-display').style.display = 'none';
+        };
     });
     </script>
 </body>

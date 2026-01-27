@@ -6,7 +6,9 @@ A modern, responsive web application built with Django for tracking personal inc
 
 ### Core Functionality
 - **User Authentication**: Secure login/logout system
-- **Transaction Management**: Add, view, and filter income/expense transactions
+- **Transaction Management**: Add, view, and filter income/expense/switch transactions
+- **Money Transfer System**: Switch money between UPI Cash and Hand Cash
+- **Balance Validation**: Prevents overspending with real-time balance checks
 - **Real-time Dashboard**: Overview of financial status with summary cards
 - **Advanced Analytics**: Monthly trends, category breakdowns, and interactive charts
 - **Survival Dashboard**: Financial health monitoring with AI-powered insights
@@ -17,9 +19,14 @@ A modern, responsive web application built with Django for tracking personal inc
 ### Key Highlights
 - **Modern UI/UX**: Clean, professional interface with glassmorphism effects
 - **Interactive Charts**: Daily trends, monthly comparisons, and category distributions
-- **Smart Filtering**: Date, category, transaction type, and payment method filtering
+- **Smart Filtering**: Date, category, transaction type (Income/Expense/Switch), and payment method filtering
+- **Interactive Transaction Rows**: Click any transaction to exclude from totals and see recalculated balances
 - **Interactive Category Analysis**: Click categories to toggle visibility and recalculate totals
+- **Money Transfer Feature**: Seamlessly switch funds between UPI and Hand Cash without affecting totals
+- **Balance Validation**: Real-time checks prevent overspending beyond available balance
 - **AI-Powered Insights**: Intelligent spending analysis and financial recommendations
+- **Weekly Spending Tracker**: Visual breakdown of daily expenses for the current week
+- **Dynamic Spending Warnings**: Personalized alerts based on your average daily spending (not fixed amounts)
 - **Survival Analytics**: Month-end balance prediction and financial health scoring
 - **Payment Method Balances**: Separate balance tracking for UPI and Hand Cash
 - **Real-time Warnings**: Proactive alerts for financial risks and spending patterns
@@ -84,8 +91,9 @@ class User(AbstractUser):
 ```python
 class Transaction(models.Model):
     user = ForeignKey(User)                    # Transaction owner
-    transaction_type = CharField               # 'INCOME' or 'EXPENSE'
+    transaction_type = CharField               # 'INCOME', 'EXPENSE', or 'SWITCH'
     money_type = CharField                     # 'UPI CASH' or 'HAND CASH'
+    switch_direction = CharField               # 'UPI_TO_HAND' or 'HAND_TO_UPI' (for switches)
     amount = DecimalField(max_digits=12)       # Transaction amount
     category = CharField(max_length=50)        # Transaction category
     description = CharField(max_length=200)    # Optional description
@@ -128,19 +136,23 @@ User Login → Fetch Transactions → Calculate Summaries → Render Dashboard
 
 ### Dashboard (`dashboard/views.py`)
 - **Summary Cards**: Total income, expenses, and balance
-- **Payment Method Balances**: Separate UPI Cash and Hand Cash balance display
-- **Multi-Filter System**: Date, category, transaction type, and payment method filters
-- **Financial Health Warnings**: Real-time alerts for spending risks
+- **Payment Method Balances**: Separate UPI Cash and Hand Cash balance display with switch tracking
+- **Interactive Transaction Rows**: Click any row to exclude from totals and see recalculated balances
+- **Multi-Filter System**: Date, category, transaction type (Income/Expense/Switch), and payment method filters
+- **Financial Health Warnings**: Real-time alerts for spending risks with personalized thresholds
 - **Recent Transactions**: Paginated transaction list with inline filtering
 - **AJAX Pagination**: Smooth page transitions with preserved filters
+- **Balance Validation**: Prevents transactions exceeding available funds
 
 ### Survival Dashboard (`dashboard/views.py - survival_dashboard`)
 - **Financial Health Score**: 0-100 scoring system with color-coded status
 - **Wealth Tracking**: Available funds across payment methods
+- **Weekly Spending Analysis**: Visual breakdown of daily expenses for current week
+- **Today's Spending Tracker**: Real-time tracking of current day expenses
 - **Month Survival Analysis**: Prediction of month-end financial status
 - **AI Insights**: Intelligent spending analysis and recommendations
 - **Cashflow Forecasting**: End-of-month balance predictions
-- **Dynamic Warnings**: Real-time financial risk alerts
+- **Dynamic Warnings**: Personalized alerts based on your average daily spending (not fixed amounts)
 
 ### Analytics (`dashboard/views.py - analytics`)
 - **Month Navigation**: Previous/next month browsing
@@ -152,9 +164,12 @@ User Login → Fetch Transactions → Calculate Summaries → Render Dashboard
 - **Data Aggregation**: Complex database queries for insights
 
 ### Transaction Management (`ledger/views.py`)
-- **Add Transactions**: Form-based transaction creation
+- **Add Transactions**: Form-based transaction creation with validation
+- **Switch Money**: Transfer funds between UPI Cash and Hand Cash
+- **Balance Validation**: Real-time checks prevent overspending
 - **Form Validation**: Server-side validation and error handling
 - **User Association**: Automatic user linking for transactions
+- **Insufficient Balance Alerts**: Clear error messages showing available vs required amounts
 
 ## 🎨 UI/UX Design Philosophy
 
@@ -195,13 +210,16 @@ User Login → Fetch Transactions → Calculate Summaries → Render Dashboard
 
 ### Data Insights
 - **Financial Summaries**: Overall and monthly totals
-- **Payment Method Tracking**: Separate balances for UPI and Hand Cash
+- **Payment Method Tracking**: Separate balances for UPI and Hand Cash with switch tracking
+- **Interactive Transaction Analysis**: Click any transaction row to exclude from totals
 - **Interactive Category Analysis**: Toggle categories to see impact on totals
+- **Weekly Spending Breakdown**: Daily expense tracking for current week
 - **AI-Powered Analytics**: Month-over-month comparisons and spending insights
 - **Category Breakdowns**: Spending patterns by category with spike detection
 - **Trend Analysis**: Daily and monthly financial trends
 - **Balance Tracking**: Real-time cumulative balance calculations
 - **Survival Metrics**: Days remaining, burn rate, and financial health scoring
+- **Personalized Warnings**: Dynamic alerts based on your spending patterns
 
 ## 🤖 AI-Powered Features
 
@@ -218,6 +236,9 @@ User Login → Fetch Transactions → Calculate Summaries → Render Dashboard
 - **Survival Analysis**: Predicts if user will run out of money before month-end
 - **Cashflow Forecasting**: Projects end-of-month balance based on current trends
 - **Proactive Warnings**: Real-time alerts across all pages
+- **Personalized Thresholds**: Warnings based on your average spending (not fixed amounts)
+- **Weekly Spending Insights**: Track daily expenses throughout the week
+- **Today's Spending Alerts**: Immediate notification when exceeding daily average by 50%
 
 ### Dynamic Data Processing
 - **Real-time Updates**: All calculations update automatically based on current date/time
@@ -234,9 +255,11 @@ User Login → Fetch Transactions → Calculate Summaries → Render Dashboard
 
 ### Advanced Analytics
 - **Daily Burn Rate**: Average daily spending calculation
+- **Weekly Spending Tracker**: Day-by-day expense breakdown for current week
+- **Today's Expense Monitor**: Real-time tracking of current day spending
 - **Projected End Balance**: Month-end balance prediction
 - **Days Until Broke**: Early warning system for fund depletion
-- **Payment Method Breakdown**: Detailed balance analysis by UPI/Hand Cash
+- **Payment Method Breakdown**: Detailed balance analysis by UPI/Hand Cash including switches
 
 ### AI Insights Integration
 - **Spending Comparisons**: Intelligent month-over-month analysis
@@ -314,7 +337,24 @@ Access Django admin at `/admin/` to:
 3. Choose Payment Method (UPI Cash or Hand Cash)
 4. Enter amount, category, description
 5. Choose date
-6. Save transaction
+6. Save transaction (validates sufficient balance for expenses)
+
+### Switching Money Between Payment Methods
+1. Click "🔄 Switch Money" from dashboard
+2. Select transfer direction:
+   - 💳 UPI → 💵 Hand (withdraw cash from UPI)
+   - 💵 Hand → 💳 UPI (deposit cash to UPI)
+3. Enter amount to transfer
+4. Add optional description (e.g., "ATM withdrawal")
+5. Choose date
+6. Click "Switch Money" (validates sufficient balance)
+
+### Interactive Transaction Analysis
+1. On dashboard, click any transaction row
+2. Row becomes grayed out with strikethrough
+3. See recalculated totals excluding that transaction
+4. Click again to re-include the transaction
+5. Click "Reset" to clear all exclusions
 
 ### Viewing Analytics
 1. Click "Analytics" from dashboard
@@ -328,15 +368,17 @@ Access Django admin at `/admin/` to:
 1. Click "🛡️ Survival" from dashboard or warning alerts
 2. View your financial health score and status
 3. Check available funds and month-end predictions
-4. Review AI insights for spending recommendations
-5. Monitor days remaining and burn rate
-6. Take action based on survival analysis
+4. Review weekly spending breakdown
+5. Monitor today's spending vs daily average
+6. Review AI insights for spending recommendations
+7. Monitor days remaining and burn rate
+8. Take action based on survival analysis
 
 ### Filtering Transactions
 1. Use comprehensive filters on dashboard:
    - Date range (start and end dates)
    - Category selection
-   - Transaction type (Income/Expense)
+   - Transaction type (Income/Expense/Switch)
    - Payment method (UPI Cash/Hand Cash)
 2. Click "Filter" to apply multiple filters simultaneously
 3. Use "Reset" to clear all filters
